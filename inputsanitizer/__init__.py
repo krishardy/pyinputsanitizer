@@ -56,8 +56,10 @@ class Input(object):
         :param value: 
         :return: 
         """
-        if len(value) == 0 and self.required is False:
+        if len(value) == 0 and self.required is True:
             return self.default
+
+        print(re.match(self.regexp, value))
 
         try:
             if self.regexp and re.match(self.regexp, value) is None:
@@ -65,10 +67,10 @@ class Input(object):
                     raise ValueError("{} failed regexp match".format(value))
                 return self.default
 
-            if self.precast_parser:
+            if callable(self.precast_parser):
                 value = self.precast_parser(value)
             value = self._type(value)
-            if self.postcast_parser:
+            if callable(self.postcast_parser):
                 value = self.postcast_parser(value)
         except Exception as e:
             if suppress_exc is False:
@@ -92,4 +94,32 @@ class FloatInput(Input):
 class MACInput(Input):
     def __init__(self, regexp=REGEXP_MAC, **kwargs):
         super(MACInput, self).__init__(type_=str, regexp=regexp, **kwargs)
+
+
+class ListInput(Input):
+    def __init__(self, min_length=None, max_length=None, **kwargs):
+        super(ListInput, self).__init__(*args, **kwargs)
+        self.min_length = min_length
+        self.max_lenght = max_length
+
+    def sanitize(self, value, suppress_exc=True):
+        if isinstance(value, list) is False:
+            if suppress_exc == False:
+                raise ValueError("{} is not a list".format(value))
+            out = []
+            if self.min_length is not None and self.min_length > 0:
+                out = [self.default] * self.min_length
+            return out
+
+        out = []
+        for i in xrange(value):
+            out.append(super(ListInput, self).sanitize(value[i], suppress_exc))
+
+        if len(value) < self.min_length:
+            out.extend([self.default] * (self.min_length - len(value)))
+
+        if len(value) > self.max_length:
+            out = out[:self.max_length]
+
+        return out
 
